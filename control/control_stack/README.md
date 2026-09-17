@@ -12,7 +12,7 @@ nothing reaches the car.
 ```bash
 export PATH=$HOME/.local/bin:$PATH
 export PARAMS_ROOT=/tmp/op_params
-export PYTHONPATH=/home/tran/msgq_build:/home/tran/opendbc_src:/home/tran/op_fork:/home/tran/op_fork/openpilot
+export PYTHONPATH=$PWD/msgq:$PWD/car:$PWD:$PWD/openpilot   # run from the repo root
 mkdir -p /tmp/op_params
 ```
 

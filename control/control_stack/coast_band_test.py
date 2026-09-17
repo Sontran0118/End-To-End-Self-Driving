@@ -12,7 +12,7 @@ Runs against the real functions, not a reimplementation. No CAN, no car.
 """
 import os, sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # control/
 
 MPH = 1.609344
 ok = fail = 0

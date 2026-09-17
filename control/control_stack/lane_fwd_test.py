@@ -24,12 +24,14 @@ Nothing is transmitted. No hardware needed.
   python3 lane_fwd_test.py
 """
 import os
+_CX5_ROOT = os.path.abspath(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir))
 import subprocess
 import sys
 import tempfile
 import types
 
-OPENDBC = os.environ.get("OPENDBC_SRC", "/home/tran/opendbc_src")
+OPENDBC = os.environ.get("OPENDBC_SRC", os.path.join(_CX5_ROOT, "car"))
 sys.path.insert(0, OPENDBC)
 
 from cffi import FFI  # noqa: E402

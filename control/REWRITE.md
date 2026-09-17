@@ -3,7 +3,7 @@
 A build order for replacing the Python stack with C++ and the panda firmware
 with your own, without re-earning a summer of measurements.
 
-Companion document: /home/tran/panda/HOST_LINK.md covers the transport layer
+Companion document: firmware/HOST_LINK.md covers the transport layer
 in detail -- read it before touching USB or SPI.
 
 
@@ -20,7 +20,7 @@ So roughly 5k lines of firmware and 10k of host code. Not 136k.
 
 ## 1. What NOT to rewrite
 
-**The safety model.** `opendbc/safety/modes/mazda.h` is already C, already
+**The safety model.** `car/opendbc/safety/modes/mazda.h` is already C, already
 compiles into the firmware, and is already tested through the real compiled
 code by override_test2 (16/16) and button_engage_test (14/14). It is also the
 audited part. Rewriting the board layer is reasonable; rewriting the safety

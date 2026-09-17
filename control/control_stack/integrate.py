@@ -14,6 +14,9 @@ Everything stops at the bus — carControl is published, nothing goes to the EPS
 
 Usage: python3 integrate.py [--synthetic] [-n N]
 """
+import os
+_CX5_ROOT = os.path.abspath(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir))
 import sys, os, time, subprocess, signal
 os.environ.setdefault("PARAMS_ROOT", "/tmp/op_params")
 sys.path.insert(0, "/home/tran/openpilot_jetson")
@@ -40,12 +43,12 @@ print("CarParams written for", CP.carFingerprint)
 # --- launch controlsd as its OWN process ---
 env = dict(os.environ)
 env["PARAMS_ROOT"] = "/tmp/op_params"
-env["PYTHONPATH"] = "/home/tran/msgq_build:/home/tran/opendbc_src:/home/tran/op_fork:/home/tran/op_fork/openpilot"
+env["PYTHONPATH"] = os.pathsep.join([os.path.join(_CX5_ROOT, "msgq"), os.path.join(_CX5_ROOT, "car"), _CX5_ROOT, os.path.join(_CX5_ROOT, "openpilot")])
 env["PATH"] = os.path.expanduser("~/.local/bin") + ":" + env.get("PATH", "")
 
 controlsd = subprocess.Popen(
     ["python3", "-m", "openpilot.selfdrive.controls.controlsd"],
-    cwd="/home/tran/op_fork/openpilot", env=env,
+    cwd=os.path.join(_CX5_ROOT, "openpilot"), env=env,
     stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
 print("controlsd launched (pid %d) — separate process" % controlsd.pid)
 time.sleep(2.0)  # let it init and block on CarParams (already written)

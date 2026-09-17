@@ -4,8 +4,9 @@ Fakes the libusb handle with the firmware's actual behaviour: a bulk IN of
 `length` bytes returns min(length, pending) and the device sends a ZLP as soon
 as the queue is empty, so a short return means drained.
 """
+import os
 import sys, os
-sys.path.insert(0, "/home/tran/op_fork/jetson_port")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # control/
 import usb_panda
 
 CHUNK = 16384

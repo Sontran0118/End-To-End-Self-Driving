@@ -29,10 +29,11 @@ longitudinal parameter, so that mode is set for the few hundred milliseconds thi
 takes and reverted to SAFETY_NOOUTPUT immediately afterwards. No tx thread runs, so
 nothing else can be sent while it is up.
 """
+import os
 import sys
 import time
 
-sys.path.insert(0, "/home/tran/op_fork/jetson_port")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from usb_panda import UsbPanda
 
 RADAR_ADDR = 0x764

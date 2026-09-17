@@ -9,10 +9,11 @@ STRICTLY read-only. No can_send anywhere.
 
 Usage: python3 read_buses.py [/dev/ttyACM0] [seconds]
 """
+import os
 import sys, struct, time, collections
 
 # reuse the verified serial-panda client
-sys.path.insert(0, "/home/tran/op_fork/jetson_port")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from bench_can_loopback import SerialPanda
 
 DEV = sys.argv[1] if len(sys.argv) > 1 else "/dev/ttyACM0"

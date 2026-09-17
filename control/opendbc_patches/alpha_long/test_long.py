@@ -7,12 +7,16 @@ Checks, in order of what fails first:
      ACCEL_CMD agrees with what the packer produced
 """
 import importlib.util
+import os
 import sys
 
-sys.path.insert(0, "/home/tran/opendbc_src")
+_CX5_ROOT = os.path.abspath(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir, os.pardir))
 
-OVERLAY = ("/home/tran/op_fork/jetson_port/opendbc_patches/alpha_long/overlay"
-           "/opendbc/car/mazda/longitudinal.py")
+sys.path.insert(0, os.path.join(_CX5_ROOT, "car"))
+
+OVERLAY = os.path.join(_CX5_ROOT, "control", "opendbc_patches", "alpha_long",
+                       "overlay", "opendbc", "car", "mazda", "longitudinal.py")
 
 spec = importlib.util.spec_from_file_location("mazda_longitudinal", OVERLAY)
 mod = importlib.util.module_from_spec(spec)

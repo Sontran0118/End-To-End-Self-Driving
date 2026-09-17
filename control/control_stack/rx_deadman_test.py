@@ -16,7 +16,7 @@ only an arrival TIME does.
 """
 import os, sys, importlib
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # control/
 os.environ.setdefault("OP_NO_CAMERA", "1")
 
 ok = fail = 0
