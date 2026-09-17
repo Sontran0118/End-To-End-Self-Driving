@@ -28,11 +28,13 @@ ARMING (real transmit):
   exactly as validated by override_test2.py. Read the arming banner before use.
 """
 import os, sys, time, json, math, threading, argparse, socket, struct, collections
+_CX5_ROOT = os.path.abspath(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir))
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 os.environ.setdefault("PARAMS_ROOT", "/tmp/op_params")
 sys.path.insert(0, "/home/tran/openpilot_jetson")
-sys.path.insert(0, "/home/tran/op_fork/jetson_port")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # control/
 
 import numpy as np
 import cv2
@@ -2102,8 +2104,8 @@ def pipeline(args):
     procs = []
     if not args.no_daemons:
         env = dict(os.environ)
-        env["PYTHONPATH"] = ("/home/tran/msgq_build:/home/tran/opendbc_src:"
-                             "/home/tran/op_fork:/home/tran/op_fork/openpilot")
+        env["PYTHONPATH"] = os.pathsep.join([os.path.join(_CX5_ROOT, "msgq"), os.path.join(_CX5_ROOT, "car"),
+                             _CX5_ROOT, os.path.join(_CX5_ROOT, "openpilot")])
         # This board has no camerad, no sensord, no locationd: supercombo is fed
         # straight from the IMX477 in-process and modelV2 is published from here.
         # Without this flag selfdrived raises four NO_ENTRY events for daemons that
@@ -2139,7 +2141,7 @@ def pipeline(args):
             # bounced behind the model/publish threads.
             cmd = (["taskset", "-c", daemon_core[mod]] + base) if ncpu >= 6 else base
             procs.append(subprocess.Popen(cmd,
-                                          cwd="/home/tran/op_fork/openpilot", env=env,
+                                          cwd=os.path.join(_CX5_ROOT, "openpilot"), env=env,
                                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL))
         time.sleep(4.0)
 

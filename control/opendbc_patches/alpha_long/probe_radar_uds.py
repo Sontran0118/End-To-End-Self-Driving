@@ -20,15 +20,18 @@ Car stationary, wheels chocked, ignition on, engine running, MRCC MAIN on.
 
 Then paste the output back.
 """
+import os
+_CX5_ROOT = os.path.abspath(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir, os.pardir))
 import sys
 import time
 
-sys.path.insert(0, "/home/tran/op_fork/jetson_port")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))   # control/
 # sudo drops PYTHONPATH *and* the invoking user's site-packages, so both have to
 # be restored by hand: opendbc for create_longitudinal_messages, and tran's
 # site-packages for capnp, which opendbc.car.structs imports at module level.
 # Without the second one the failure is a bare "No module named 'capnp'".
-sys.path.insert(0, "/home/tran/opendbc_src")
+sys.path.insert(0, os.path.join(_CX5_ROOT, "car"))
 import glob                                                        # noqa: E402
 for _sp in sorted(glob.glob("/home/tran/.local/lib/python3.*/site-packages")):
     if _sp not in sys.path:

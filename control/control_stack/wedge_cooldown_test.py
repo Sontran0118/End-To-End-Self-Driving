@@ -17,6 +17,9 @@ MEASURED 2026-08-13: wedged 264 s and then 452 s with wedge_recoveries == 0.
 
 This models the two cooldowns directly -- no USB, no car.
 """
+import os
+_CX5_ROOT = os.path.abspath(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir))
 import sys
 
 ok = fail = 0
@@ -86,9 +89,9 @@ check("NEW: board reset within 25 s of the wedge", f_new is not None and f_new <
       "fired at %s" % f_new)
 
 # The attributes must actually exist and be distinct on the real class.
-sys.path.insert(0, "/home/tran/op_fork/jetson_port")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # control/
 import ast
-src = open("/home/tran/op_fork/jetson_port/usb_panda.py").read()
+src = open(os.path.join(_CX5_ROOT, "control", "usb_panda.py")).read()
 # Strip comments first -- the fix's own note mentions the old name.
 _code = "\n".join(l.split("#")[0] for l in src.splitlines())
 check("usb_panda has no stale _last_reset_t use",

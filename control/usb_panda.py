@@ -30,7 +30,7 @@ _PANDA_PKG = _os.environ.get(
 def _load_panda():
     """Import the local panda firmware repo UNDER THE NAME `panda`.
 
-    Two traps here. First, /home/tran/panda/__init__.py line 10 does
+    Two traps here. First, <repo>/firmware/__init__.py line 10 does
     `from panda import Panda` -- an ABSOLUTE import -- so the package only loads
     under that name; registering it in sys.modules BEFORE exec means the
     partially-initialised module is already bound by the time that line runs
@@ -369,7 +369,7 @@ class UsbPanda:
         i, n = 0, len(raw)
         while i + self._HEAD <= n:
             # SYNC MARKER, when the firmware emits one (CAN_SYNC_MARKER in
-            # /home/tran/panda/board/can_comms.h).
+            # <repo>/firmware/board/can_comms.h).
             #
             # Accepting BOTH formats is deliberate: firmware and host can be
             # updated in either order without a flag day, and a mismatch degrades

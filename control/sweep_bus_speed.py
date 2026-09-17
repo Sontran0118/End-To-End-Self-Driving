@@ -8,9 +8,10 @@ Read-only (SAFETY_SILENT). No transmit.
 
 Usage: python3 sweep_bus_speed.py [/dev/ttyACM0] [bus]
 """
+import os
 import sys, struct, time
 
-sys.path.insert(0, "/home/tran/op_fork/jetson_port")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from bench_can_loopback import SerialPanda
 
 DEV = sys.argv[1] if len(sys.argv) > 1 else "/dev/ttyACM0"

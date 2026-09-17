@@ -21,10 +21,12 @@ to SILENT on exit. Nothing is ever written to CAN.
 Usage:  python3 dashcam.py [--seconds N] [--no-model]
 """
 import os, sys, time, json, signal, subprocess, argparse, glob
+_CX5_ROOT = os.path.abspath(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir))
 
 os.environ.setdefault("PARAMS_ROOT", "/tmp/op_params")
 sys.path.insert(0, "/home/tran/openpilot_jetson")
-sys.path.insert(0, "/home/tran/op_fork/jetson_port")
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # control/
 
 import numpy as np
 import openpilot.cereal.messaging as messaging
@@ -338,15 +340,15 @@ def main():
     # ---- real openpilot daemons ----
     env = dict(os.environ)
     env["PARAMS_ROOT"] = os.environ["PARAMS_ROOT"]
-    env["PYTHONPATH"] = ("/home/tran/msgq_build:/home/tran/opendbc_src:"
-                         "/home/tran/op_fork:/home/tran/op_fork/openpilot")
+    env["PYTHONPATH"] = os.pathsep.join([os.path.join(_CX5_ROOT, "msgq"), os.path.join(_CX5_ROOT, "car"),
+                                     _CX5_ROOT, os.path.join(_CX5_ROOT, "openpilot")])
     # See dashcam_web.py: no camerad/sensord/locationd on this board, so selfdrived's
     # liveness checks for them would raise four NO_ENTRY events and block engagement.
     env["JETSON_CAMERA_BYPASS"] = "1"
     procs = []
     for mod in ("openpilot.selfdrive.selfdrived.selfdrived",
                 "openpilot.selfdrive.controls.controlsd"):
-        p = subprocess.Popen(["python3", "-m", mod], cwd="/home/tran/op_fork/openpilot",
+        p = subprocess.Popen(["python3", "-m", mod], cwd=os.path.join(_CX5_ROOT, "openpilot"),
                              env=env, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         procs.append(p)
         print(f"launched {mod.split('.')[-1]} (pid {p.pid})")

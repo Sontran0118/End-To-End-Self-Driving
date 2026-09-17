@@ -14,14 +14,14 @@ flowchart TB
 ```
 
 ## 1 · Camera capture
-`openpilot/jetson_port/model/op_frame.py`
+`control/model/op_frame.py`
 
 CSI frames into the model's input format: openpilot's calibration perspective warp
 (`get_warp_matrix`) and YUV420 → 12-channel packing. A hood mask, derived from real
 driving clips rather than a default guess, removes the bonnet from the view.
 
 ## 2 · Driving model
-`openpilot/jetson_port/model/op_stream.py`
+`control/model/op_stream.py`
 
 comma's supercombo network on the Orin with no openpilot install underneath it.
 `SupercomboRunner` keeps the recurrent state that makes the output temporally coherent:
@@ -40,7 +40,7 @@ carControl. They are separate so GPU work can never stall CAN work, and the mode
 pinned off the panda role's cores.
 
 ## 4 · Lateral control
-`openpilot/jetson_port/control_stack/dashcam_web.py`, `curvature_lib.py`
+`control/control_stack/dashcam_web.py`, `curvature_lib.py`
 
 Model path → curvature → steering torque on `0x243`, at 50–70 Hz. Supercombo emits a
 **path**, not a curvature, so the conversion is a real quadratic fit validated against
@@ -66,7 +66,7 @@ into something drivable with an accel ceiling, a jerk limit and a speed cap.
   discount and are rejected outright if they sit more than 30 km/h below measured speed.
 
 ## 6 · Alpha longitudinal
-`opendbc/car/mazda/longitudinal.py`, `dashcam_web.py` handover thread
+`car/opendbc/car/mazda/longitudinal.py`, `dashcam_web.py` handover thread
 
 The factory radar is the ECU that commands longitudinal. Put it in a UDS programming
 session at `0x764` and hold the session open with tester-present, and `0x21b` and `0x21c`
@@ -81,7 +81,7 @@ makes the PCM latch a fault.
 **Cost:** the radar is FCW, AEB and SBS. While it is suppressed the car has none of them.
 
 ## 7 · Host transport
-`openpilot/jetson_port/usb_panda.py`
+`control/usb_panda.py`
 
 USB bulk, libusb. Notable machinery, all of which exists because of a specific failure:
 
@@ -95,16 +95,16 @@ USB bulk, libusb. Notable machinery, all of which exists because of a specific f
 - **Liveness from arrival time, never from a decoded value.**
 
 ## 8 · Panda firmware
-`panda/board/`
+`firmware/board/`
 
 STM32F407 target, bxCAN with camera ↔ car forwarding, the host link, and `SAFETY_NOOUTPUT`
 as the boot and heartbeat-loss fallback — not `SAFETY_SILENT`, which disables forwarding
 and raises a front camera fault by itself on a board with no harness relay.
 
-See [`panda/HOST_LINK.md`](https://github.com/Sontran0118/panda/blob/stm32f407-port/HOST_LINK.md).
+See [`firmware/HOST_LINK.md`](../../firmware/HOST_LINK.md).
 
 ## 9 · Safety model
-`opendbc/safety/modes/mazda.h`
+`car/opendbc/safety/modes/mazda.h`
 
 The last gate before the wire, compiled into the firmware. Transmit allowlist, steering
 torque and rate limits, and engagement.

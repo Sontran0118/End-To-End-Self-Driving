@@ -3,7 +3,8 @@
 set -e
 cd ~/op_fork/openpilot/cereal
 
-CAR_CAPNP_DIR=/home/tran/opendbc_src/opendbc/car
+_CX5_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+CAR_CAPNP_DIR="$_CX5_ROOT/car/opendbc/car"
 mkdir -p gen/cpp
 
 echo "=== generating C++ from capnp schemas ==="

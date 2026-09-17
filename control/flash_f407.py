@@ -17,7 +17,7 @@ survive, which is the safe idle state on a build with no harness relay.
 import sys
 import time
 
-sys.path.insert(0, "/home/tran/op_fork/jetson_port")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from usb_panda import UsbPanda
 
 import os as _os

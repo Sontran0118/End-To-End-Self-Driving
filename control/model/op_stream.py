@@ -312,7 +312,7 @@ class SupercomboRunner:
             #
             # NB: this file is the one dashcam_web.py actually imports.
             # jetson_port/model/op_stream.py is a MIRROR -- dashcam_web puts
-            # /home/tran/op_fork/jetson_port on sys.path, but op_stream lives in
+            # the control/ directory on sys.path, but op_stream lives in
             # that dir's model/ subdirectory, so `import op_stream` resolves
             # HERE instead. Keep the two in step or edits silently do nothing.
             desire_state=softmax(o[s['desire_state']][:MC.DESIRE_LEN]),

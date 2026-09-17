@@ -13,11 +13,14 @@ that it reports FAILURE when the reply address is filtered out -- which is what
 the panda does when it is still running the 17-ID mazda_filter.h build.
 """
 import collections
+import os
+_CX5_ROOT = os.path.abspath(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir, os.pardir))
 import sys
 import threading
 import time
 
-sys.path.insert(0, "/home/tran/opendbc_src")
+sys.path.insert(0, os.path.join(_CX5_ROOT, "car"))
 
 from opendbc.car.can_definitions import CanData
 from opendbc.car.mazda.longitudinal import RADAR_ADDR, enter_radar_programming_session

@@ -28,10 +28,11 @@ No tx thread is running, so nothing else can be sent while it is up.
 If 0x21b does not resume afterwards, the radar needs an ignition cycle and this
 script cannot help.
 """
+import os
 import sys
 import time
 
-sys.path.insert(0, "/home/tran/op_fork/jetson_port")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from usb_panda import UsbPanda
 
 RADAR_ADDR = 0x764

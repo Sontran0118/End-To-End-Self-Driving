@@ -13,8 +13,9 @@ part is read-only (SAFETY_SILENT, no transmit onto the real bus).
 
 Usage: python3 test_tr2.py [/dev/ttyACM0]
 """
+import os
 import sys, time
-sys.path.insert(0, "/home/tran/op_fork/jetson_port")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from bench_can_loopback import SerialPanda
 
 DEV = sys.argv[1] if len(sys.argv) > 1 else "/dev/ttyACM0"

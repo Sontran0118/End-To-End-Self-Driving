@@ -24,8 +24,11 @@ Rebuild before trusting a run:
 
 Nothing is transmitted. Run:  cd ~/opendbc_src && python3 /tmp/override_test2.py
 """
+import os
+_CX5_ROOT = os.path.abspath(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir))
 import sys
-sys.path.insert(0, "/home/tran/opendbc_src")
+sys.path.insert(0, os.path.join(_CX5_ROOT, "car"))
 
 from opendbc.car.structs import CarParams
 from opendbc.safety.tests.libsafety import libsafety_py

@@ -4,8 +4,11 @@ Reproduces long_tx_thread's exact shim contract without needing openpilot/msgq,
 and asserts update() never raises across the full frame cycle -- including the
 frame % 50 HUD branch and the frame % 5 / % 10 button branches.
 """
+import os
+_CX5_ROOT = os.path.abspath(os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), os.pardir, os.pardir, os.pardir))
 import sys
-sys.path.insert(0, "/home/tran/opendbc_src")
+sys.path.insert(0, os.path.join(_CX5_ROOT, "car"))
 
 from opendbc.car import Bus, gen_empty_fingerprint, structs
 from opendbc.car.mazda.values import CAR
