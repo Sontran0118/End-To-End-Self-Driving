@@ -1,0 +1,26 @@
+# python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.pytest_cache/
+
+# firmware build output
+firmware/board/obj/
+*.o
+*.os
+*.a
+*.elf
+*.bin
+*.hex
+*.map
+
+# scons / native build
+.sconsign.dblite
+*.so
+node_modules/
+
+# editors
+.vscode/
+.idea/
+compile_commands.json
