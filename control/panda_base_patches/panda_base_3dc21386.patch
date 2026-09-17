@@ -1,0 +1,488 @@
+diff --git a/board/config.h b/board/config.h
+index 94ef5490..6b6bda07 100644
+--- a/board/config.h
++++ b/board/config.h
+@@ -35,6 +35,8 @@
+ // platform includes
+ #ifdef STM32H7
+   #include "board/stm32h7/stm32h7_config.h"
++#elif defined(STM32F446xx)
++  #include "board/stm32f446/stm32f4_config.h"
+ #elif defined(STM32F4)
+   #include "board/stm32f4/stm32f4_config.h"
+ #else
+diff --git a/board/drivers/bxcan.h b/board/drivers/bxcan.h
+index 75bd05d5..f34c21e1 100644
+--- a/board/drivers/bxcan.h
++++ b/board/drivers/bxcan.h
+@@ -1,5 +1,27 @@
+ #include "bxcan_declarations.h"
+ 
++#ifdef PANDA_NUCLEO
++// on-device Mazda decoding, called from can_rx() below
++#include "board/vehicle_state.h"
++#endif
++
++#ifdef MAZDA_FILTER
++// mazda_host_visible(): trims the HOST feed only. The acceptance filters accept
++// everything so that forwarding carries the full bus in both directions.
++#include "board/drivers/mazda_filter.h"
++#endif
++
++#ifdef STM32F446xx
++// F446 has only CAN1/CAN2. CAN_ARRAY_SIZE stays 3 so the tables below keep their
++// shape, and the unused third slot is aliased to CAN2 purely so this file compiles.
++// Nothing indexes can_number 2: can_init_all() stops at F446_CAN_CNT, and the
++// bus_config mapping routes logical bus 2 to can_number 1 (the real CAN2).
++#define CAN3 CAN2
++#define CAN3_TX_IRQn CAN2_TX_IRQn
++#define CAN3_RX0_IRQn CAN2_RX0_IRQn
++#define CAN3_SCE_IRQn CAN2_SCE_IRQn
++#endif
++
+ // IRQs: CAN1_TX, CAN1_RX0, CAN1_SCE
+ //       CAN2_TX, CAN2_RX0, CAN2_SCE
+ //       CAN3_TX, CAN3_RX0, CAN3_SCE
+@@ -66,6 +88,9 @@ void update_can_health_pkt(uint8_t can_number, uint32_t ir_reg) {
+ // ***************************** CAN *****************************
+ // CANx_SCE IRQ Handler
+ static void can_sce(uint8_t can_number) {
++  CAN_TypeDef *CANx = CANIF_FROM_CAN_NUM(can_number);
++  // clear latched FIFO overrun so reception can resume
++  CANx->RF0R |= (CAN_RF0R_FOVR0 | CAN_RF0R_FULL0);
+   update_can_health_pkt(can_number, 1U);
+ }
+ 
+@@ -100,7 +125,19 @@ void process_can(uint8_t can_number) {
+           WORD_TO_BYTE_ARRAY(&to_push.data[4], CANx->sTxMailBox[0].TDHR);
+           can_set_checksum(&to_push);
+ 
++#ifdef MAZDA_FILTER
++          // TX echo, host feed only. The Jetson only ever transmits on bus 0
++          // (0x243), but EVERY frame forwarded car->cam is also a bus 2
++          // transmission -- echoing ~3k frames/s of forwarded traffic back over
++          // the serial link would undo the gate in can_rx() entirely. Echo bus 0
++          // through the same list, which keeps the 0x243 send confirmation the
++          // host actually uses.
++          if ((bus_number == 0U) && mazda_host_visible(to_push.addr)) {
++            rx_buffer_overflow += can_push(&can_rx_q, &to_push) ? 0U : 1U;
++          }
++#else
+           rx_buffer_overflow += can_push(&can_rx_q, &to_push) ? 0U : 1U;
++#endif
+         }
+ 
+         // clear interrupt
+@@ -136,6 +173,12 @@ void can_rx(uint8_t can_number) {
+   CAN_TypeDef *CANx = CANIF_FROM_CAN_NUM(can_number);
+   uint8_t bus_number = BUS_NUM_FROM_CAN_NUM(can_number);
+ 
++  // FOVR0 recovery: clear FIFO overrun/full flags (write-1-to-clear).
++  // Once FOVR0 latches, bxCAN stops accepting new frames until it is cleared.
++  if ((CANx->RF0R & (CAN_RF0R_FOVR0 | CAN_RF0R_FULL0)) != 0U) {
++    CANx->RF0R |= (CAN_RF0R_FOVR0 | CAN_RF0R_FULL0);
++  }
++
+   while ((CANx->RF0R & CAN_RF0R_FMP0) != 0U) {
+     can_health[can_number].total_rx_cnt += 1U;
+ 
+@@ -175,11 +218,25 @@ void can_rx(uint8_t can_number) {
+       can_health[can_number].total_fwd_cnt += 1U;
+     }
+ 
++#ifdef PANDA_NUCLEO
++    vehicle_state_update(to_push.addr, &to_push.data[0]);
++#endif
+     safety_rx_invalid += safety_rx_hook(&to_push) ? 0U : 1U;
+     ignition_can_hook(&to_push);
+ 
+     led_set(LED_BLUE, true);
++#ifdef MAZDA_FILTER
++    // Host feed only. Forwarding (above), the safety hooks, the ignition hook and
++    // the vehicle-state decode have all already seen this frame -- they run on the
++    // full bus, which is what makes relay-malfunction detection meaningful. What
++    // the 1.5 Mbaud serial link cannot take is the raw ~2-3k frames/s of bus 0, so
++    // gate that here. Bus 2 is the camera segment and passes through whole.
++    if ((bus_number != 0U) || mazda_host_visible(to_push.addr)) {
++      rx_buffer_overflow += can_push(&can_rx_q, &to_push) ? 0U : 1U;
++    }
++#else
+     rx_buffer_overflow += can_push(&can_rx_q, &to_push) ? 0U : 1U;
++#endif
+ 
+     // next
+     CANx->RF0R |= CAN_RF0R_RFOM0;
+@@ -194,9 +251,13 @@ static void CAN2_TX_IRQ_Handler(void) { process_can(1); }
+ static void CAN2_RX0_IRQ_Handler(void) { can_rx(1); }
+ static void CAN2_SCE_IRQ_Handler(void) { can_sce(1); }
+ 
++#ifndef STM32F446xx
+ static void CAN3_TX_IRQ_Handler(void) { process_can(2); }
+ static void CAN3_RX0_IRQ_Handler(void) { can_rx(2); }
+ static void CAN3_SCE_IRQ_Handler(void) { can_sce(2); }
++#endif
++// (F446: CAN3 aliases CAN2, so these handlers would collide with CAN2's on the
++//  same IRQ vector and mislabel CAN2 frames as bus 2 — omitted on F446.)
+ 
+ bool can_init(uint8_t can_number) {
+   bool ret = false;
+@@ -207,9 +268,17 @@ bool can_init(uint8_t can_number) {
+   REGISTER_INTERRUPT(CAN2_TX_IRQn, CAN2_TX_IRQ_Handler, CAN_INTERRUPT_RATE, FAULT_INTERRUPT_RATE_CAN_2)
+   REGISTER_INTERRUPT(CAN2_RX0_IRQn, CAN2_RX0_IRQ_Handler, CAN_INTERRUPT_RATE, FAULT_INTERRUPT_RATE_CAN_2)
+   REGISTER_INTERRUPT(CAN2_SCE_IRQn, CAN2_SCE_IRQ_Handler, CAN_INTERRUPT_RATE, FAULT_INTERRUPT_RATE_CAN_2)
++#ifndef STM32F446xx
+   REGISTER_INTERRUPT(CAN3_TX_IRQn, CAN3_TX_IRQ_Handler, CAN_INTERRUPT_RATE, FAULT_INTERRUPT_RATE_CAN_3)
+   REGISTER_INTERRUPT(CAN3_RX0_IRQn, CAN3_RX0_IRQ_Handler, CAN_INTERRUPT_RATE, FAULT_INTERRUPT_RATE_CAN_3)
+   REGISTER_INTERRUPT(CAN3_SCE_IRQn, CAN3_SCE_IRQ_Handler, CAN_INTERRUPT_RATE, FAULT_INTERRUPT_RATE_CAN_3)
++#else
++  // F446 THE BUG: CAN3_*_IRQn are #define'd to CAN2_*_IRQn (CAN3 aliases CAN2).
++  // Registering the CAN3 handlers here OVERWRITES the CAN2 handlers for the SAME
++  // IRQ vector -> a CAN2 RX interrupt runs can_rx(2) instead of can_rx(1), so
++  // CAN2's frames get tagged bus 2 and never appear on bus 1. Skip them: CAN2's
++  // own handlers (registered just above) must win.
++#endif
+ 
+   if (can_number != 0xffU) {
+     CAN_TypeDef *CANx = CANIF_FROM_CAN_NUM(can_number);
+diff --git a/board/drivers/can_common.h b/board/drivers/can_common.h
+index 23e0c1a4..4a1909c2 100644
+--- a/board/drivers/can_common.h
++++ b/board/drivers/can_common.h
+@@ -22,8 +22,16 @@ bool can_loopback = false;
+   extern can_ring can_##x; \
+   can_ring can_##x = { .w_ptr = 0, .r_ptr = 0, .fifo_size = (size), .elems = (CANPacket_t *)&(elems_##x) };
+ 
++#ifdef STM32F446xx
++#define CAN_RX_BUFFER_SIZE 2048U   // deep queue, keeps ~20KB stack headroom
++#else
+ #define CAN_RX_BUFFER_SIZE 4096U
++#endif
++#ifdef STM32F446xx
++#define CAN_TX_BUFFER_SIZE 128U
++#else
+ #define CAN_TX_BUFFER_SIZE 416U
++#endif
+ 
+ #ifdef STM32H7
+ // ITCM RAM and DTCM RAM are the fastest for Cortex-M7 core access
+@@ -130,12 +138,32 @@ void can_clear(can_ring *q) {
+ 
+ // Helpers
+ // Panda:       Bus 0=CAN1   Bus 1=CAN2   Bus 2=CAN3
++#ifdef STM32F446xx
++// F446 has only two CAN peripherals, but openpilot's forwarding convention is
++// bus 0 <-> bus 2 (get_fwd_bus() in the opendbc safety layer): bus 0 = main/
++// powertrain, bus 2 = camera/ADAS. Bus 1 never forwards. So physical CAN2 must
++// present as LOGICAL BUS 2, not bus 1, or no frame is ever eligible to forward.
++//
++// bus_config is indexed two different ways, which is easy to get wrong:
++//   .bus_lookup     is read as bus_config[can_number].bus_lookup     (can -> bus)
++//   .can_num_lookup is read as bus_config[bus_number].can_num_lookup (bus -> can)
++// So index 1 serves BOTH roles: as can_number 1 it maps to bus 2, and as
++// bus_number 1 it maps to no CAN (0xFF) because nothing lives on bus 1 here.
++// Index 2 is bus 2 -> can 1; its .bus_lookup is unused (there is no can_number 2).
++bus_config_t bus_config[BUS_CONFIG_ARRAY_SIZE] = {
++  { .bus_lookup = 0U, .can_num_lookup = 0U, .forwarding_bus = -1, .can_speed = 5000U, .can_data_speed = 20000U, .canfd_auto = false, .canfd_enabled = false, .brs_enabled = false, .canfd_non_iso = false },
++  { .bus_lookup = 2U, .can_num_lookup = 0xFFU, .forwarding_bus = -1, .can_speed = 5000U, .can_data_speed = 20000U, .canfd_auto = false, .canfd_enabled = false, .brs_enabled = false, .canfd_non_iso = false },
++  { .bus_lookup = 0xFFU, .can_num_lookup = 1U, .forwarding_bus = -1, .can_speed = 5000U, .can_data_speed = 20000U, .canfd_auto = false, .canfd_enabled = false, .brs_enabled = false, .canfd_non_iso = false },
++  { .bus_lookup = 0xFFU, .can_num_lookup = 0xFFU, .forwarding_bus = -1, .can_speed = 333U, .can_data_speed = 333U, .canfd_auto = false, .canfd_enabled = false, .brs_enabled = false, .canfd_non_iso = false },
++};
++#else
+ bus_config_t bus_config[BUS_CONFIG_ARRAY_SIZE] = {
+   { .bus_lookup = 0U, .can_num_lookup = 0U, .forwarding_bus = -1, .can_speed = 5000U, .can_data_speed = 20000U, .canfd_auto = false, .canfd_enabled = false, .brs_enabled = false, .canfd_non_iso = false },
+   { .bus_lookup = 1U, .can_num_lookup = 1U, .forwarding_bus = -1, .can_speed = 5000U, .can_data_speed = 20000U, .canfd_auto = false, .canfd_enabled = false, .brs_enabled = false, .canfd_non_iso = false },
+   { .bus_lookup = 2U, .can_num_lookup = 2U, .forwarding_bus = -1, .can_speed = 5000U, .can_data_speed = 20000U, .canfd_auto = false, .canfd_enabled = false, .brs_enabled = false, .canfd_non_iso = false },
+   { .bus_lookup = 0xFFU, .can_num_lookup = 0xFFU, .forwarding_bus = -1, .can_speed = 333U, .can_data_speed = 333U, .canfd_auto = false, .canfd_enabled = false, .brs_enabled = false, .canfd_non_iso = false },
+ };
++#endif
+ 
+ void can_init_all(void) {
+   for (uint8_t i=0U; i < PANDA_CAN_CNT; i++) {
+@@ -143,15 +171,29 @@ void can_init_all(void) {
+       bus_config[i].can_data_speed = 0U;
+     #endif
+     can_clear(can_queues[i]);
++#ifdef STM32F446xx
++    // F446 has only CAN1 (can 0) and CAN2 (can 1). There is no can_number 2:
++    // cans[2] aliases CAN2, so can_init(2) would RE-initialize the already-running
++    // CAN2 -- re-entering INRQ mid-operation and re-clocking the peripheral, leaving
++    // it mis-synced so it STUFF/FORM-errors on real traffic. Skip the phantom init.
++    if (i >= F446_CAN_CNT) { continue; }
++#endif
+     (void)can_init(i);
+   }
+ }
+ 
+ void can_set_orientation(bool flipped) {
++#ifdef STM32F446xx
++  // The Nucleo has no harness relay / SBU orientation detection, and the stock
++  // swap below assumes can_number 2 exists (it does not here) -- applying it
++  // would overwrite the F446 can<->bus mapping set up above. Fixed orientation.
++  UNUSED(flipped);
++#else
+   bus_config[0].bus_lookup = flipped ? 2U : 0U;
+   bus_config[0].can_num_lookup = flipped ? 2U : 0U;
+   bus_config[2].bus_lookup = flipped ? 0U : 2U;
+   bus_config[2].can_num_lookup = flipped ? 0U : 2U;
++#endif
+ }
+ 
+ #ifdef PANDA_JUNGLE
+@@ -208,6 +250,24 @@ void ignition_can_hook(CANPacket_t *msg) {
+       ignition_can_cnt = 0U;
+     }
+ 
++#ifdef PANDA_NUCLEO
++    // Mazda CX-5 2023 (MAZDA_CX5_2022): this platform does not transmit 0x9E
++    // (MSG_05) at all, so the exception above never fires and ignition_can stays
++    // false forever -- which makes pandad hold NO_OUTPUT permanently, since its
++    // relay logic is `!ignition_local || !is_onroad`.
++    //
++    // Use ENGINE_DATA (0x202) instead: RPM is a big-endian 16-bit at bit 7 with a
++    // 0.25 scale, so raw = (d[0]<<8)|d[1] and rpm = raw/4. A running engine idles
++    // around 650-750 rpm; key-on-engine-off reads 0. Threshold well below idle but
++    // above noise. 0x202 is sent at ~120 Hz, comfortably faster than the 2 s
++    // ignition_can timeout in main.c.
++    if ((addr == 0x202) && (len == 8)) {
++      uint32_t rpm_raw = ((uint32_t)msg->data[0] << 8) | (uint32_t)msg->data[1];
++      ignition_can = (rpm_raw / 4U) > MAZDA_IGNITION_MIN_RPM;
++      ignition_can_cnt = 0U;
++    }
++#endif
++
+   }
+ }
+ 
+diff --git a/board/drivers/can_common_declarations.h b/board/drivers/can_common_declarations.h
+index 57bf87d9..631b41a6 100644
+--- a/board/drivers/can_common_declarations.h
++++ b/board/drivers/can_common_declarations.h
+@@ -70,6 +70,18 @@ uint32_t can_slots_empty(const can_ring *q);
+ #define BUS_CONFIG_ARRAY_SIZE 4
+ extern bus_config_t bus_config[BUS_CONFIG_ARRAY_SIZE];
+ 
++#ifdef STM32F446xx
++// number of REAL CAN peripherals on the F446 (CAN1, CAN2). PANDA_CAN_CNT stays 3
++// so the bus/queue arrays keep their shape; this bounds actual peripheral init.
++#define F446_CAN_CNT 2U
++#endif
++
++#ifdef PANDA_NUCLEO
++// engine-running threshold for CAN ignition detection on the Mazda CX-5, in rpm.
++// Idle is ~650-750; key-on-engine-off is 0. See ignition_can_hook().
++#define MAZDA_IGNITION_MIN_RPM 400U
++#endif
++
+ #define CANIF_FROM_CAN_NUM(num) (cans[num])
+ #define BUS_NUM_FROM_CAN_NUM(num) (bus_config[num].bus_lookup)
+ #define CAN_NUM_FROM_BUS_NUM(num) (bus_config[num].can_num_lookup)
+diff --git a/board/drivers/harness.h b/board/drivers/harness.h
+index 3ebf109f..1203f97c 100644
+--- a/board/drivers/harness.h
++++ b/board/drivers/harness.h
+@@ -99,7 +99,12 @@ void harness_init(void) {
+   set_gpio_output(current_board->harness_config->GPIO_relay_SBU2, current_board->harness_config->pin_relay_SBU2, 1);
+ 
+   // detect initial orientation
++#ifdef PANDA_NUCLEO
++  // Nucleo has no harness/SBU ADC hardware - ADC would spin forever
++  harness.status = HARNESS_STATUS_NC;
++#else
+   harness.status = harness_detect_orientation();
++#endif
+ 
+   // keep buses connected by default
+   set_intercept_relay(false, false);
+diff --git a/board/drivers/registers_declarations.h b/board/drivers/registers_declarations.h
+index 90ee66df..bc7ba13d 100644
+--- a/board/drivers/registers_declarations.h
++++ b/board/drivers/registers_declarations.h
+@@ -8,7 +8,11 @@ typedef struct reg {
+ } reg;
+ 
+ // 10 bit hash with 23 as a prime
++#ifdef STM32F446xx
++#define REGISTER_MAP_SIZE 0xFFU   // 128K RAM (mask: must be 2^n-1)
++#else
+ #define REGISTER_MAP_SIZE 0x3FFU
++#endif
+ #define HASHING_PRIME 23U
+ #define CHECK_COLLISION(hash, addr) (((uint32_t) register_map[hash].address != 0U) && (register_map[hash].address != (addr)))
+ 
+diff --git a/board/main.c b/board/main.c
+index dbc6e343..c55beb02 100644
+--- a/board/main.c
++++ b/board/main.c
+@@ -27,7 +27,17 @@
+ #include "board/obj/gitversion.h"
+ 
+ #include "board/can_comms.h"
++#ifdef PANDA_NUCLEO
++// serial transport counters: main_comms.h serves them on endpoint 0xd8, so the
++// type has to be visible before it, while the definitions live in serial_comms.h
++// below (which in turn needs main_comms.h's comms_* dispatch).
++#include "board/drivers/serial_comms_declarations.h"
++#endif
+ #include "board/main_comms.h"
++#ifdef PANDA_NUCLEO
++#include "board/drivers/serial_uart_raw.h"
++#include "board/drivers/serial_comms.h"
++#endif
+ 
+ 
+ // ********************* Serial debugging *********************
+@@ -326,7 +336,12 @@ int main(void) {
+   print("DEBUG ENABLED\n");
+ #endif
+   // enable USB (right before interrupts or enum can fail!)
++#ifdef PANDA_NUCLEO
++  // Nucleo: no usable USB peripheral - panda protocol runs over USART2 (ST-Link VCP)
++  serial_comms_init();
++#else
+   usb_init();
++#endif
+ 
+   if (current_board->has_spi) {
+     gpio_spi_init();
+@@ -342,6 +357,20 @@ int main(void) {
+ 
+   // LED should keep on blinking all the time
+   while (true) {
++#ifdef PANDA_NUCLEO
++    // Polled UART transport: service comms as fast as possible. The stock LED
++    // fade below blocks for seconds, which would starve the serial link
++    // (USB pandas do comms in interrupts, so the fade is harmless there).
++    serial_comms_tick();
++    if (power_save_status == POWER_SAVE_STATUS_DISABLED) {
++      static uint32_t nucleo_blink = 0U;
++      nucleo_blink++;
++      if ((nucleo_blink & 0x3FFFFU) == 0U) {
++        led_set(LED_RED, (nucleo_blink & 0x40000U) != 0U);
++      }
++    }
++    continue;
++#endif
+     if (power_save_status == POWER_SAVE_STATUS_DISABLED) {
+       #ifdef DEBUG_FAULTS
+       if (fault_status == FAULT_STATUS_NONE) {
+diff --git a/board/main_comms.h b/board/main_comms.h
+index 6b049f6e..4a3e0f63 100644
+--- a/board/main_comms.h
++++ b/board/main_comms.h
+@@ -201,6 +201,41 @@ int comms_control_handler(ControlPacket_t *req, uint8_t *resp) {
+         (void)memcpy(resp, &code[code_len + 64], resp_len);
+       }
+       break;
++#ifdef PANDA_NUCLEO
++    // **** 0xd5: get decoded Mazda vehicle state
++    case 0xd5:
++      (void)memcpy(resp, (uint8_t *)&vehicle_state, sizeof(vehicle_state));
++      resp_len = sizeof(vehicle_state);
++      break;
++    // **** 0xd9: serial transport framing counters (see serial_stats_t)
++    case 0xd9:
++      COMPILE_TIME_ASSERT(sizeof(serial_stats_t) <= USBPACKET_MAX_SIZE);
++      (void)memcpy(resp, (uint8_t *)&serial_stats, sizeof(serial_stats));
++      resp_len = sizeof(serial_stats);
++      break;
++    // **** 0xd7: dump live CAN + GPIO registers for param1=can_number (debug)
++    case 0xd7:
++      if (req->param1 < 3U) {
++        CAN_TypeDef *CANx = CANIF_FROM_CAN_NUM((uint8_t)req->param1);
++        uint32_t regs[12];
++        regs[0] = CANx->BTR;
++        regs[1] = CANx->MSR;
++        regs[2] = CANx->ESR;
++        regs[3] = CANx->MCR;
++        regs[4] = CAN1->FMR;
++        regs[5] = CAN1->FA1R;
++        regs[6] = CANx->RF0R;          // RX FIFO0: FMP0 (pending count), FOVR0, FULL0
++        // RAW PIN STATE: GPIOB IDR (input data reg) — bit5=PB5(CAN2 RX), bit8=PB8(CAN1 RX)
++        regs[7] = GPIOB->IDR;
++        regs[8] = GPIOB->MODER;        // is PB5 in ALTERNATE mode (0b10)?
++        regs[9] = GPIOB->AFR[0];       // AF for PB0-7: PB5 nibble at bits 20-23 (should be 9)
++        regs[10] = GPIOB->AFR[1];      // AF for PB8-15: PB8 nibble
++        regs[11] = CANx->sFIFOMailBox[0].RIR;  // top RX mailbox ID reg (if a frame sits there)
++        (void)memcpy(resp, (uint8_t *)regs, sizeof(regs));
++        resp_len = sizeof(regs);
++      }
++      break;
++#endif
+     // **** 0xd6: get version
+     case 0xd6:
+       COMPILE_TIME_ASSERT(sizeof(gitversion) <= USBPACKET_MAX_SIZE);
+diff --git a/board/vehicle_state.h b/board/vehicle_state.h
+new file mode 100644
+index 00000000..fabfc6eb
+--- /dev/null
++++ b/board/vehicle_state.h
+@@ -0,0 +1,69 @@
++// Mazda CX-5 vehicle-state decoding, done on-device.
++// Scalings from opendbc/dbc/mazda_2017.dbc. Motorola/big-endian signals.
++#pragma once
++
++typedef struct __attribute__((packed)) {
++  uint16_t counter;        // increments per decoded frame set
++  int16_t  steer_angle;    // deg * 10
++  int16_t  steer_rate;     // deg/s * 10
++  int16_t  steer_torque;   // motor torque * 10
++  int8_t   torque_sensor;  // raw sensor, -127 offset applied
++  uint16_t speed;          // kph * 100
++  uint16_t rpm;            // rpm
++  uint16_t pedal_gas;      // raw 12-bit
++  uint16_t wheel_fl;       // kph * 100
++  uint16_t wheel_fr;
++  uint16_t wheel_rl;
++  uint16_t wheel_rr;
++  uint32_t rx_frames;      // frames decoded since boot
++} VehicleState_t;
++
++VehicleState_t vehicle_state = {0};
++
++// Extract a Motorola/big-endian DBC signal: start_bit is the MSB position
++// using the DBC convention (byte*8 + (7 - bit_in_byte) is NOT applied here;
++// callers pass the raw DBC start bit and we walk MSB-first).
++static uint32_t vs_sig(const uint8_t *d, uint8_t start_bit, uint8_t length) {
++  uint32_t val = 0U;
++  uint8_t byte_i = start_bit / 8U;
++  uint8_t bit_i = start_bit % 8U;
++  for (uint8_t i = 0U; i < length; i++) {
++    if (byte_i >= 8U) { break; }
++    val = (val << 1) | ((d[byte_i] >> bit_i) & 1U);
++    if (bit_i == 0U) { bit_i = 7U; byte_i++; } else { bit_i--; }
++  }
++  return val;
++}
++
++static void vehicle_state_update(uint32_t addr, const uint8_t *d) {
++  switch (addr) {
++    case 0x082U:  // STEER: STEER_ANGLE 23|16 (0.05, -1600) deg
++      vehicle_state.steer_angle = (int16_t)(((int32_t)vs_sig(d, 23U, 16U) * 5 / 10) - 16000);
++      break;
++    case 0x241U:  // STEER_RATE: 23|16 (0.25, -8192) deg/s
++      vehicle_state.steer_rate = (int16_t)(((int32_t)vs_sig(d, 23U, 16U) * 25 / 10) - 81920);
++      break;
++    case 0x240U: { // STEER_TORQUE
++      uint32_t raw = vs_sig(d, 46U, 15U);
++      int32_t sgn = (raw & 0x4000U) ? ((int32_t)raw - 32768) : (int32_t)raw;
++      vehicle_state.steer_torque = (int16_t)sgn;
++      vehicle_state.torque_sensor = (int8_t)((int32_t)vs_sig(d, 7U, 8U) - 127);
++      break;
++    }
++    case 0x202U:  // ENGINE_DATA: RPM 7|16 (0.25), SPEED 23|16 (0.01), PEDAL 39|12
++      vehicle_state.rpm = (uint16_t)(vs_sig(d, 7U, 16U) / 4U);
++      vehicle_state.speed = (uint16_t)vs_sig(d, 23U, 16U);
++      vehicle_state.pedal_gas = (uint16_t)vs_sig(d, 39U, 12U);
++      break;
++    case 0x215U:  // WHEEL_SPEEDS: each 16 bit (0.01, -100) kph
++      vehicle_state.wheel_fl = (uint16_t)vs_sig(d, 7U, 16U);
++      vehicle_state.wheel_fr = (uint16_t)vs_sig(d, 23U, 16U);
++      vehicle_state.wheel_rl = (uint16_t)vs_sig(d, 39U, 16U);
++      vehicle_state.wheel_rr = (uint16_t)vs_sig(d, 55U, 16U);
++      break;
++    default:
++      return;
++  }
++  vehicle_state.counter++;
++  vehicle_state.rx_frames++;
++}

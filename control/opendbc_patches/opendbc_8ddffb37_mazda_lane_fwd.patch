@@ -1,0 +1,71 @@
+diff --git a/opendbc/car/mazda/mazdacan.py b/opendbc/car/mazda/mazdacan.py
+index adccdd64..6a8cab45 100644
+--- a/opendbc/car/mazda/mazdacan.py
++++ b/opendbc/car/mazda/mazdacan.py
+@@ -1,7 +1,7 @@
+ from opendbc.car.mazda.values import Buttons, MazdaFlags
+ 
+ 
+-def create_steering_control(packer, CP, frame, apply_torque, lkas):
++def create_steering_control(packer, CP, frame, apply_torque, lkas, steering_angle=0):
+ 
+   tmp = apply_torque + 2048
+ 
+@@ -16,8 +16,20 @@ def create_steering_control(packer, CP, frame, apply_torque, lkas):
+   er2 = int(lkas["ERR_BIT_2"])
+ 
+   # Some older models do have these, newer models don't.
+-  # Either way, they all work just fine if set to zero.
+-  steering_angle = 0
++  # Either way, they all work just fine if set to zero -- which is why the stock
++  # default for `steering_angle` is 0 and every stock caller leaves it there.
++  #
++  # The Jetson port passes the model's desired steering-wheel angle here (raw DBC
++  # units, 12-bit two's-complement-ish via the +2048 offset). ANGLE_ENABLED stays
++  # 0: this is the angle *report* field, not a request to switch the EPS into
++  # angle control, and nothing in the panda safety model validates it.
++  #
++  # NOTE on the checksum below: it is reverse-engineered, and the `ahi == 1`
++  # correction shows it was only ever fitted against captures. With
++  # steering_angle == 0, ahi is always 2; other values exercise ahi 0/1/3, which
++  # are NOT validated against a real camera. Clamp here so a bad model output can
++  # never push the field (and therefore the checksum) outside the DBC range.
++  steering_angle = int(max(-2048, min(2047, steering_angle)))
+   b2 = 0
+ 
+   tmp = steering_angle + 2048
+diff --git a/opendbc/safety/modes/mazda.h b/opendbc/safety/modes/mazda.h
+index 60fbffbd..c2fefa52 100644
+--- a/opendbc/safety/modes/mazda.h
++++ b/opendbc/safety/modes/mazda.h
+@@ -84,7 +84,30 @@ static bool mazda_tx_hook(const CANPacket_t *msg) {
+ }
+ 
+ static safety_config mazda_init(uint16_t param) {
++#ifdef PANDA_NUCLEO
++  // DIY F446 panda (Jetson port). Stock openpilot replaces BOTH camera frames:
++  // the CarController sends its own 0x243 every frame and its own 0x440 at 2 Hz
++  // (create_alert_command), so blocking the camera's copies of both is correct
++  // there. This port replaces only 0x243 -- nothing generates a 0x440 -- so with
++  // the stock table the car's LKAS system receives NO lane state at all and
++  // ignores the injected steering.
++  //
++  // disable_static_blocking lifts ONLY the cam->car forward block for 0x440 (see
++  // safety_fwd_hook). check_relay stays TRUE, so:
++  //   - 0x243 is still blocked cam->car: openpilot's steering frame is the only
++  //     one the car ever sees. That is the whole point of the intercept.
++  //   - a 0x440 (or 0x243) arriving on bus 0 from any OTHER sender still latches
++  //     relay_malfunction, which is the check that catches a camera that was
++  //     never electrically cut off the main bus.
++  // The panda does not receive its own transmissions (bxCAN never self-receives,
++  // and the TX echo is pushed straight to can_rx_q by process_can without going
++  // through safety_rx_hook), so forwarding 0x440 onto bus 0 cannot self-trigger.
++  static const CanMsg MAZDA_TX_MSGS[] = {{MAZDA_LKAS, 0, 8, .check_relay = true},
++                                         {MAZDA_CRZ_BTNS, 0, 8, .check_relay = false},
++                                         {MAZDA_LKAS_HUD, 0, 8, .check_relay = true, .disable_static_blocking = true}};
++#else
+   static const CanMsg MAZDA_TX_MSGS[] = {{MAZDA_LKAS, 0, 8, .check_relay = true}, {MAZDA_CRZ_BTNS, 0, 8, .check_relay = false}, {MAZDA_LKAS_HUD, 0, 8, .check_relay = true}};
++#endif
+ 
+   static RxCheck mazda_rx_checks[] = {
+     {.msg = {{MAZDA_CRZ_CTRL,     0, 8, 50U, .ignore_checksum = true, .ignore_counter = true, .ignore_quality_flag = true}, { 0 }, { 0 }}},

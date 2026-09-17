@@ -1,0 +1,23 @@
+cx5
+===
+
+This repository contains substantial portions of software developed by
+Comma.ai, Inc., used under the MIT License:
+
+  openpilot/  cereal/  msgq/  rednose/  tools/  and the repository root
+      Copyright (c) 2018, Comma.ai, Inc.   https://github.com/commaai/openpilot
+
+  car/
+      Copyright (c) 2020, Comma.ai, Inc.   https://github.com/commaai/opendbc
+
+  firmware/
+      Copyright (c) 2016, Comma.ai, Inc.   https://github.com/commaai/panda
+
+The MIT License text is in LICENSE, and each vendored tree retains its own
+LICENSE file where one was present upstream.
+
+Modifications for the Jetson Orin / STM32F407 / Mazda CX-5 port, and the
+original work in control/, are by the repository owner and are released under
+the same MIT License.
+
+This project is NOT affiliated with or endorsed by Comma.ai, Inc.
