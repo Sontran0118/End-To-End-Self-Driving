@@ -15,6 +15,11 @@ dist/
 build/
 pandacan.egg-info/
 obj/
+# keep board/obj/ itself so a fresh clone can build: SConscript writes
+# board/obj/gitversion.h before anything creates the directory.
+!board/obj/
+board/obj/*
+!board/obj/.gitkeep
 examples/output.csv
 .DS_Store
 .vscode*
