@@ -1,3 +1,7 @@
+
+
+https://github.com/user-attachments/assets/fba5c552-c0c6-4aac-84b3-51f9696463ef
+
 # cx5
 
 openpilot on an **NVIDIA Jetson Orin Nano** driving a **2023 Mazda CX-5**, through a
