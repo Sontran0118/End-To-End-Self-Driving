@@ -71,7 +71,7 @@ python3 ~/op_fork/jetson_port/control_stack/lane_fwd_test.py     # expect 27/27
 
 # 3. the DBC signals longitudinal.py patches actually exist, and the packer's
 #    ACCEL_CMD round-trips through the safety hook's unpacking
-python3 /tmp/claude-.../scratchpad/test_long.py    # written, never run
+python3 control/opendbc_patches/alpha_long/test_long.py    # written, never run
 ```
 
 Then, car stationary and wheels chocked: confirm `enter_radar_programming_session`
