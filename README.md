@@ -7,6 +7,10 @@ from the factory radar.
 A single standalone tree. No submodules, no fork relationship — clone it and everything
 needed to build and run is here.
 
+## Demo
+
+▶️ [Watch the demo video](docs/assets/demo.mp4) (48 s, 720p)
+
 ---
 
 ## How the components fit together
