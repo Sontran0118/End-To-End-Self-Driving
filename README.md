@@ -111,19 +111,6 @@ sequenceDiagram
 
 ---
 
-## Layout
-
-| path | what it is | origin |
-|---|---|---|
-| `control/` | **The control stack.** Camera, model runner, lateral and longitudinal control, USB transport, regression tests. | ours |
-| `firmware/` | **The panda firmware.** STM32F407 board target, CAN drivers, host link. See `firmware/HOST_LINK.md`. | comma's panda, heavily modified |
-| `car/` | **Car port and safety model.** `opendbc/car/mazda/`, and `opendbc/safety/modes/mazda.h` compiled into the firmware. | comma's opendbc, modified |
-| `openpilot/` | Runtime: cereal messaging, params, controlsd. | comma's, unmodified |
-| `msgq/` `cereal/` `rednose/` `tools/` | Supporting runtime. | comma's, unmodified |
-| `docs/cx5/` | This project's documentation. | ours |
-
-Substantial parts of this repository are Comma.ai's work under the MIT License — see
-[`NOTICE`](NOTICE). Not affiliated with or endorsed by Comma.ai.
 
 ## Build and run
 
