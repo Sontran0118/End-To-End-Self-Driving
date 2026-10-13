@@ -7,11 +7,6 @@ Openpilot on an **NVIDIA Jetson Orin Nano** driving a **2023 Mazda CX-5**, throu
 from the factory radar.
 
 
-
-## Demo
-
-▶️ [Watch the demo video](docs/assets/demo.mp4) (48 s, 720p)
-
 ---
 
 ## How the components fit together
