@@ -2,7 +2,7 @@
 
 https://github.com/user-attachments/assets/fba5c552-c0c6-4aac-84b3-51f9696463ef
 
-Openpilot on an **NVIDIA Jetson Orin Nano** driving a **2023 Mazda CX-5**, through a
+AI model on an **NVIDIA Jetson Orin Nano** driving a **2023 Mazda CX-5**, through a
 **DIY panda** built on an STM32F407. Camera and steering, plus longitudinal control taken
 from the factory radar.
 
